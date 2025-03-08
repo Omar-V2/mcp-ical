@@ -206,15 +206,16 @@ class CalendarManager:
             logger.error(f"Failed to update event: {e}")
             raise
 
-    def delete_event(self, event_id: str) -> bool:
+    def delete_event(self, event_id: str, delete_entire_series: bool = True) -> bool:
         """Delete an event by its identifier
-
+        
         Args:
             event_id: The unique identifier of the event to delete
-
+            delete_entire_series: Whether to delete all future occurrences (True) or just this occurrence (False)
+            
         Returns:
             bool: True if deletion was successful, False otherwise
-
+            
         Raises:
             NoSuchEventException: If the event with the given ID doesn't exist
             Exception: If there was an error deleting the event
@@ -222,21 +223,26 @@ class CalendarManager:
         existing_event = self.find_event_by_id(event_id)
         if not existing_event:
             raise NoSuchEventException(event_id)
-
+            
         existing_ek_event = existing_event._raw_event
         if not existing_ek_event:
             raise NoSuchEventException(event_id)
-
+            
         try:
-            success, error = self.event_store.removeEvent_span_error_(existing_ek_event, EKSpanFutureEvents, None)
-
+            # Use EKSpanFutureEvents to delete all future events in the case of a recurring event
+            # or EKSpanThisEvent to delete just this occurrence
+            span_type = EKSpanFutureEvents if delete_entire_series else EKSpanThisEvent
+            
+            success, error = self.event_store.removeEvent_span_error_(existing_ek_event, span_type, None)
             if not success:
                 logger.error(f"Failed to delete event: {error}")
                 raise Exception(error)
-
-            logger.info(f"Successfully deleted event: {existing_event.title}")
+                
+            logger.info(
+                f"Successfully deleted event: {existing_event.title}" +
+                (" and all future occurrences" if delete_entire_series else " (this occurrence only)")
+            )
             return True
-
         except Exception as e:
             logger.error(f"Failed to delete event: {e}")
             raise
