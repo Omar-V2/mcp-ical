@@ -199,13 +199,14 @@ async def update_event(event_id: str, update_event_request: UpdateEventRequest) 
 
 @mcp.tool()
 async def get_reference_date() -> str:
-    """获取当前日期作为时间参照点。
+    """Get the current date as a reference point.
     
-    当用户提及相对日期（如"明天"、"后天"、"下周"等）时，调用此工具返回当前日期作为参照点。
-    这有助于正确计算相对日期表达式对应的实际日期。
+    When users mention relative dates (e.g., "tomorrow," "the day after tomorrow," "next week"), 
+    this tool returns the current date as a reference point. 
+    This helps accurately calculate the actual date corresponding to relative date expressions.
     
     Returns:
-        str: 今日日期，格式为YYYY-MM-DD
+        str: Today's date in the format YYYY-MM-DD
     """
     try:
         today = datetime.today().date()
