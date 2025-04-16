@@ -210,9 +210,9 @@ async def get_reference_date() -> str:
     """
     try:
         today = datetime.today().date()
-        return f"当前日期（时间参照点）: {today.isoformat()}"
+        return f"Current date (time reference point): {today.isoformat()}"
     except Exception as e:
-        return f"获取时间参照点出错: {str(e)}"
+        return f"Error getting timestamp reference point: {str(e)}"
 
 
 def main():
