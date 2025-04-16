@@ -197,6 +197,23 @@ async def update_event(event_id: str, update_event_request: UpdateEventRequest) 
         return f"Error updating event: {str(e)}"
 
 
+@mcp.tool()
+async def get_reference_date() -> str:
+    """获取当前日期作为时间参照点。
+    
+    当用户提及相对日期（如"明天"、"后天"、"下周"等）时，调用此工具返回当前日期作为参照点。
+    这有助于正确计算相对日期表达式对应的实际日期。
+    
+    Returns:
+        str: 今日日期，格式为YYYY-MM-DD
+    """
+    try:
+        today = datetime.today().date()
+        return f"当前日期（时间参照点）: {today.isoformat()}"
+    except Exception as e:
+        return f"获取时间参照点出错: {str(e)}"
+
+
 def main():
     logger.info("Running mcp-ical server...")
     mcp.run(transport="stdio")
