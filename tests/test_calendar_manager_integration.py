@@ -1,5 +1,6 @@
 import time
 from datetime import datetime, timedelta
+import subprocess
 
 import pytest
 
@@ -14,13 +15,34 @@ from src.mcp_ical.models import (
 
 @pytest.fixture(scope="session")
 def calendar_manager():
-    """Create a single CalendarManager instance for all tests."""
+    """
+    会话级别的 fixture，整个测试会话只创建一个 CalendarManager 实例。
+    作用：
+    - 用于所有测试用例共享同一个 CalendarManager，避免重复初始化。
+    - 在 fixture 初始化时主动触发一次 macOS 日历权限请求，确保后续操作不会因权限弹窗阻塞。
+    - 返回 CalendarManager 实例供测试用例使用。
+    """
+    # 主动触发一次权限请求
+    try:
+        subprocess.run([
+            "osascript",
+            "-e",
+            'tell application "Calendar" to get name of calendars'
+        ], timeout=5)
+    except Exception:
+        pass
     return CalendarManager()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def cleanup_calendars_after_tests():
-    """Fixture that runs after all tests to ensure calendars are properly cleaned up."""
+    """
+    会话级别的自动 fixture，在所有测试结束后自动执行清理操作。
+    作用：
+    - 测试结束后等待一段时间，确保 iCloud 日历同步完成。
+    - 再次获取 CalendarManager，遍历所有日历，删除以 test_calendar_ 开头的测试日历，防止测试遗留数据。
+    - 该 fixture 自动应用，无需在测试用例中显式引用。
+    """
     yield
 
     print("Waiting for iCloud sync before final calendar cleanup...")
@@ -37,7 +59,13 @@ def cleanup_calendars_after_tests():
 
 @pytest.fixture
 def test_calendar(calendar_manager):
-    """Create an isolated calendar for testing."""
+    """
+    用于为每个测试用例创建一个独立的测试日历。
+    作用：
+    - 每次测试生成唯一名称的日历，避免测试间数据干扰。
+    - 测试结束后自动删除该日历，保证环境整洁。
+    - 通过 yield 返回日历名称和 manager，供测试用例使用。
+    """
     calendar_name = f"test_calendar_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
 
     calendar = calendar_manager._create_calendar(calendar_name)
@@ -54,7 +82,13 @@ def test_calendar(calendar_manager):
 
 @pytest.fixture
 def cleanup_events(calendar_manager):
-    """Fixture to clean up created events after tests"""
+    """
+    用于在每个测试用例后清理创建的事件。
+    作用：
+    - 提供 _add_event 方法，测试用例可注册需要清理的事件 ID。
+    - 测试结束后自动遍历并删除这些事件，防止数据残留。
+    - 依赖于传入的 calendar_manager 实例。
+    """
     created_events = []
 
     def _add_event(event_id):
@@ -72,7 +106,13 @@ def cleanup_events(calendar_manager):
 
 @pytest.fixture
 def test_event_base():
-    """Base event data for testing"""
+    """
+    提供基础事件数据的 fixture。
+    作用：
+    - 生成一个默认的事件字典，包含标题、起止时间、备注、地点等。
+    - 方便各测试用例复用，减少重复代码。
+    - 起止时间为当前时间+1天，持续1小时。
+    """
     start_time = datetime.now().replace(microsecond=0) + timedelta(days=1)
     end_time = start_time + timedelta(hours=1)
     return {
@@ -275,25 +315,28 @@ def test_event_across_calendars(calendar_manager, test_event_base, test_calendar
     if len(calendars) < 2:
         pytest.skip("Need at least 2 calendars for this test")
 
-    # Create event in the Home calendar
+    from_calendar = calendars[0].title()
+    to_calendar = calendars[1].title()
+
+    # Create event in the from_calendar
     event = calendar_manager.create_event(
         CreateEventRequest(
             title=test_event_base["title"],
             start_time=test_event_base["start_time"],
             end_time=test_event_base["end_time"],
-            notes=test_event_base["notes"],
-            location=test_event_base["location"],
-            calendar_name="Home",
+            notes=test_event_base.get("notes"),
+            location=test_event_base.get("location"),
+            calendar_name=from_calendar,
         )
     )
     cleanup_events(event.identifier)
 
-    # Move it to another test calendar
-    calendar_manager.update_event(event.identifier, UpdateEventRequest(calendar_name=test_calendar["name"]))
+    # Move it to the to_calendar
+    calendar_manager.update_event(event.identifier, UpdateEventRequest(calendar_name=to_calendar))
 
     # Verify event moved
     retrieved_event = calendar_manager.find_event_by_id(event.identifier)
-    assert retrieved_event.calendar_name == test_calendar["name"]
+    assert retrieved_event.calendar_name == to_calendar
 
 
 def test_create_event_uses_default_calendar(calendar_manager, test_event_base, test_calendar, cleanup_events):

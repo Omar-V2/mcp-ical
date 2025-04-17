@@ -39,6 +39,19 @@ class CalendarManager:
         # Always request access regardless of current status
         if not self._request_access():
             logger.error("Calendar access request failed")
+            # 如果被拒绝，尝试请求日历App的访问权限
+            import subprocess
+            import platform
+            try:
+                # For macOS Ventura (13) and later, use the Settings app
+                
+                subprocess.run(
+                    ["osascript", "-e", 'tell application "Calendar" to get name of calendars'],timeout=5,
+                    check=True,
+                )
+                logger.info("Opened Calendar app to trigger permission prompt. Please grant access and retry.")
+            except Exception as e:
+                logger.error(f"Failed to open System Settings: {e}")
             raise ValueError(
                 "Calendar access not granted. Please check System Settings > Privacy & Security > Calendar."
             )
