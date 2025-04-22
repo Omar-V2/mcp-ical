@@ -197,6 +197,44 @@ async def update_event(event_id: str, update_event_request: UpdateEventRequest) 
         return f"Error updating event: {str(e)}"
 
 
+@mcp.tool()
+async def delete_event(event_id: str, delete_entire_series: bool = True) -> str:
+    """Delete a calendar event.
+
+    Before using this tool, make sure to:
+    1. Confirm with the user that they want to delete this event
+    2. If it's a recurring event, ask if they want to delete just this occurrence or the entire series
+       - Set delete_entire_series=True (default) to delete this and all future occurrences
+       - Set delete_entire_series=False to delete only this occurrence
+
+    Args:
+        event_id: Unique identifier of the event to delete
+        delete_entire_series: Whether to delete the entire series (True) or just this occurrence (False)
+    """
+    logger.info(f"Attempting to delete event with ID: {event_id}, delete_entire_series={delete_entire_series}")
+    try:
+        manager = get_calendar_manager()
+        
+        # Find the event first to get its title
+        event = manager.find_event_by_id(event_id)
+        if not event:
+            return f"Event with ID {event_id} not found."
+            
+        event_title = event.title
+        
+        # Delete the event with specified span type
+        success = manager.delete_event(event_id, delete_entire_series)
+        if not success:
+            return f"Failed to delete event with ID {event_id}."
+            
+        return f"Successfully deleted event: {event_title}" + (
+            " and all future occurrences" if delete_entire_series else " (this occurrence only)"
+        )
+        
+    except Exception as e:
+        return f"Error deleting event: {str(e)}"
+
+
 def main():
     logger.info("Running mcp-ical server...")
     mcp.run(transport="stdio")
