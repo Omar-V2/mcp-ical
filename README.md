@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/omar-v2-mcp-ical-badge.png)](https://mseep.ai/app/omar-v2-mcp-ical)
+
 # MCP iCal Server
 
 <div align="center">
