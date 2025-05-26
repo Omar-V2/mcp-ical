@@ -37,7 +37,7 @@
 
 macOS Calendar Service access is required for the MCP iCal server to function properly. Follow one of the methods below to grant calendar access to your Terminal app or to Claude.
 
-### Method 1: Launch Claude from Terminal (Recommended)
+### Method 1: Launch Claude from Terminal (Quick)
 
 > ⚠️ **Critical**: Claude must be launched from the terminal to properly request calendar permissions. Launching directly from Finder will not trigger the permissions prompt.
 
@@ -48,6 +48,15 @@ Run the following command in your terminal:
 ```
 
 When you first use a calendar-related command, macOS will prompt for calendar access. This prompt will only appear if you launched Claude from the terminal as specified above.
+
+### Method 1B: Alfred Workflow (Recommended)
+
+For a more convenient and powerful launch experience, see our [Alfred Setup Guide](alfred-setup.md). This method:
+
+- Provides a quick keyword-based launch (`cld`)
+- Supports running multiple Claude instances simultaneously
+- Ensures proper calendar permission prompts through Alfred
+- Offers a cleaner workflow for daily use
 
 ### Method 2: Manually Grant Calendar Access
 

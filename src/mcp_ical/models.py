@@ -30,8 +30,28 @@ class Weekday(IntEnum):
 
 
 def convert_datetime(v):
+    # Handle NSDate and NSTaggedDate objects
     if hasattr(v, "timeIntervalSince1970"):
-        return datetime.fromtimestamp(v.timeIntervalSince1970())
+        try:
+            return datetime.fromtimestamp(v.timeIntervalSince1970())
+        except (AttributeError, TypeError):
+            # Fallback for NSTaggedDate or other special NSDate subclasses
+            pass
+    
+    # Handle NSTaggedDate and other NSDate subclasses that might not work with timeIntervalSince1970
+    # Check for NSDate-like objects (either actual NSDate or mocked objects with NSDate-like behavior)
+    if (hasattr(v, "timeIntervalSinceReferenceDate") or 
+        "NSDate" in str(type(v)) or 
+        "NSTaggedDate" in str(type(v))):
+        try:
+            # Extract the timestamp if available via timeIntervalSinceReferenceDate method
+            if hasattr(v, "timeIntervalSinceReferenceDate"):
+                # NSDate reference date is January 1, 2001 00:00:00 UTC
+                reference_timestamp = 978307200  # January 1, 2001 00:00:00 UTC
+                timestamp = v.timeIntervalSinceReferenceDate() + reference_timestamp
+                return datetime.fromtimestamp(timestamp)
+        except Exception:
+            pass
 
     if isinstance(v, str):
         return datetime.fromisoformat(v)
@@ -150,8 +170,8 @@ class Event:
 
         return cls(
             title=ekevent.title(),
-            start_time=ekevent.startDate(),
-            end_time=ekevent.endDate(),
+            start_time=convert_datetime(ekevent.startDate()),
+            end_time=convert_datetime(ekevent.endDate()),
             calendar_name=ekevent.calendar().title(),
             location=ekevent.location(),
             notes=ekevent.notes(),
@@ -163,7 +183,7 @@ class Event:
             status=ekevent.status(),
             organizer=str(ekevent.organizer().name()) if ekevent.organizer() else None,
             attendees=attendees,
-            last_modified=ekevent.lastModifiedDate(),
+            last_modified=convert_datetime(ekevent.lastModifiedDate()) if ekevent.lastModifiedDate() else None,
             identifier=ekevent.eventIdentifier(),
             _raw_event=ekevent,
         )
@@ -202,8 +222,8 @@ class Event:
 
 class CreateEventRequest(BaseModel):
     title: str
-    start_time: datetime
-    end_time: datetime
+    start_time: FlexibleDateTime
+    end_time: FlexibleDateTime
     calendar_name: str | None = None
     location: str | None = None
     notes: str | None = None
@@ -215,8 +235,8 @@ class CreateEventRequest(BaseModel):
 
 class UpdateEventRequest(BaseModel):
     title: str | None = None
-    start_time: datetime | None = None
-    end_time: datetime | None = None
+    start_time: FlexibleDateTime | None = None
+    end_time: FlexibleDateTime | None = None
     calendar_name: str | None = None
     location: str | None = None
     notes: str | None = None

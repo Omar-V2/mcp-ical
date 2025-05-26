@@ -8,6 +8,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .ical import CalendarManager
 from .models import CreateEventRequest, UpdateEventRequest
+from .groups.group_tools import register_group_tools
 
 mcp = FastMCP("Calendar")
 
@@ -42,29 +43,186 @@ def get_calendar_manager() -> CalendarManager:
 
 @mcp.resource("calendars://list")
 def get_calendars() -> str:
-    """List all available calendars that can be used with calendar operations."""
+    """Get structured calendar information as JSON for use by other tools."""
+    import json
+    
     try:
         manager = get_calendar_manager()
-        calendars = manager.list_calendar_names()
-        if not calendars:
-            return "No calendars found"
-        return "Available calendars:\n" + "\n".join(f"- {cal}" for cal in calendars)
+        calendars = manager.list_calendars()  # Get raw EKCalendar objects
+        default_calendar = manager.event_store.defaultCalendarForNewEvents()
+        default_id = default_calendar.uniqueIdentifier() if default_calendar else None
+        
+        calendar_data = []
+        
+        for cal in calendars:
+            source = cal.source()
+            source_type = source.sourceType() if source else None
+            
+            # Map source types to readable names
+            source_type_names = {
+                0: "Local",
+                1: "Exchange", 
+                2: "CalDAV",
+                3: "MobileMe",
+                4: "Subscribed",
+                5: "Birthdays"
+            }
+            
+            calendar_info = {
+                "name": cal.title(),
+                "id": cal.uniqueIdentifier(),
+                "source_name": source.title() if source else "Unknown Source",
+                "source_type": source_type,
+                "source_type_name": source_type_names.get(source_type, f"Unknown ({source_type})"),
+                "is_default": cal.uniqueIdentifier() == default_id,
+                "is_editable": cal.allowsContentModifications(),
+                "supports_events": cal.supportedEventAvailabilities() > 0,
+                "is_subscribed": source_type == 4 if source_type is not None else False,
+                "is_team_calendar": source_type == 1 if source_type is not None else False,
+                "is_birthdays": source_type == 5 if source_type is not None else False
+            }
+            
+            calendar_data.append(calendar_info)
+        
+        return json.dumps({
+            "calendars": calendar_data,
+            "total_count": len(calendar_data)
+        }, indent=2)
+        
     except ValueError as e:
-        return str(e)
+        return json.dumps({"error": str(e)})
     except Exception as e:
-        return f"Error listing calendars: {str(e)}"
+        return json.dumps({"error": f"Error listing calendars: {str(e)}"})
+
+
+
+@mcp.resource("groups://list")
+def get_calendar_groups() -> str:
+    """Get structured calendar group information as JSON for use by other tools."""
+    import json
+    
+    try:
+        from .groups.group_manager import CalendarGroupManager
+        from .groups.calendar_integration import GroupCalendarBridge
+        
+        calendar_manager = get_calendar_manager()
+        group_manager = CalendarGroupManager()
+        bridge = GroupCalendarBridge(calendar_manager, group_manager)
+        
+        groups = group_manager.list_groups()
+        
+        group_data = []
+        for group in groups:
+            try:
+                # Get calendar names for this group
+                calendar_names = bridge.resolve_calendar_ids_to_names(group.calendar_ids)
+                
+                group_info = {
+                    "name": group.name,
+                    "description": group.description,
+                    "calendar_count": len(group.calendar_ids),
+                    "calendar_names": calendar_names,
+                    "calendar_ids": group.calendar_ids,
+                    "created": group.created.isoformat(),
+                    "modified": group.modified.isoformat()
+                }
+                
+                group_data.append(group_info)
+                
+            except Exception as e:
+                # Handle individual group errors gracefully
+                group_info = {
+                    "name": group.name,
+                    "description": group.description,
+                    "calendar_count": len(group.calendar_ids),
+                    "calendar_names": [],
+                    "calendar_ids": group.calendar_ids,
+                    "created": group.created.isoformat(),
+                    "modified": group.modified.isoformat(),
+                    "error": f"Error resolving calendars: {str(e)}"
+                }
+                group_data.append(group_info)
+        
+        return json.dumps({
+            "groups": group_data,
+            "total_count": len(group_data)
+        }, indent=2)
+        
+    except Exception as e:
+        return json.dumps({"error": f"Error listing groups: {str(e)}"})
 
 
 @mcp.tool()
 async def list_calendars() -> str:
-    """List all available calendars."""
+    """List all available calendars with their properties and account information.
+    
+    When displaying calendars to the user, format them nicely and include:
+    - Calendar name and account/source
+    - Type indicators (default, team, subscribed, birthdays, CalDAV, etc.)
+    - Access permissions (read-only vs editable)
+    - Group calendars by account/source for better organization
+    - Use appropriate emojis and formatting for visual clarity
+    
+    The raw data includes calendar names, source information, types, and permissions."""
     try:
         manager = get_calendar_manager()
-        calendars = manager.list_calendar_names()
+        calendars = manager.list_calendars()  # Get raw EKCalendar objects
+        default_calendar = manager.event_store.defaultCalendarForNewEvents()
+        default_id = default_calendar.uniqueIdentifier() if default_calendar else None
+        
         if not calendars:
             return "No calendars found"
 
-        return "Available calendars:\n" + "\n".join(f"- {calendar}" for calendar in calendars)
+        # Group by source and collect detailed info
+        grouped = {}
+        for cal in calendars:
+            source = cal.source()
+            source_name = source.title() if source else "Unknown Source"
+            
+            if source_name not in grouped:
+                grouped[source_name] = []
+            
+            # Determine calendar type and properties
+            source_type = source.sourceType() if source else None
+            properties = []
+            
+            if cal.uniqueIdentifier() == default_id:
+                properties.append("default")
+            
+            if source_type == 1:  # Exchange
+                properties.append("team")
+            elif source_type == 4:  # Subscribed
+                properties.append("subscribed")
+            elif source_type == 5:  # Birthdays
+                properties.append("birthdays")
+            elif source_type == 2:  # CalDAV
+                properties.append("CalDAV")
+            
+            if not cal.allowsContentModifications():
+                properties.append("read-only")
+            else:
+                properties.append("editable")
+            
+            calendar_info = {
+                "name": cal.title(),
+                "id": cal.uniqueIdentifier(),
+                "properties": properties,
+                "source_type": source_type
+            }
+            
+            grouped[source_name].append(calendar_info)
+        
+        # Build result string with calendar data
+        result = f"Found {len(calendars)} calendars across {len(grouped)} accounts:\n\n"
+        
+        for source_name, calendar_list in grouped.items():
+            result += f"Account: {source_name}\n"
+            for cal_info in calendar_list:
+                properties_text = ", ".join(cal_info["properties"])
+                result += f"  - {cal_info['name']} ({properties_text})\n"
+            result += "\n"
+        
+        return result.rstrip()
 
     except Exception as e:
         return f"Error listing calendars: {str(e)}"
@@ -77,6 +235,10 @@ async def list_events(start_date: datetime, end_date: datetime, calendar_name: s
     The start_date should always use the time such that it represents the beginning of that day (00:00:00).
     The end_date should always use the time such that it represents the end of that day (23:59:59).
     This way, range based searches are always inclusive and can locate all events in that date range.
+
+    IMPORTANT: Display the output exactly as returned without reformatting. 
+    The output is already formatted for optimal readability.
+    Do not translate, summarize, or reformat the response.
 
     Args:
         start_date: Start date in ISO8601 format (YYYY-MM-DDT00:00:00).
@@ -197,8 +359,38 @@ async def update_event(event_id: str, update_event_request: UpdateEventRequest) 
         return f"Error updating event: {str(e)}"
 
 
+@mcp.tool()
+async def delete_event(event_id: str) -> str:
+    """Delete an existing calendar event.
+
+    Before using this tool, make sure to:
+    1. Confirm with the user that they want to delete the event
+    2. For recurring events, note that this will delete all future occurrences
+
+    Args:
+        event_id: Unique identifier of the event to delete
+
+    Returns:
+        str: Success or error message
+    """
+    try:
+        manager = get_calendar_manager()
+        success = manager.delete_event(event_id)
+        if not success:
+            return f"Failed to delete event with ID {event_id}."
+
+        return f"Successfully deleted event with ID {event_id}"
+
+    except Exception as e:
+        return f"Error deleting event: {str(e)}"
+
+
 def main():
     logger.info("Running mcp-ical server...")
+    
+    # Register group tools
+    register_group_tools(mcp, get_calendar_manager)
+    
     mcp.run(transport="stdio")
 
 

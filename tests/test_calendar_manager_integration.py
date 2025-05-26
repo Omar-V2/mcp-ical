@@ -406,3 +406,108 @@ def test_all_day_event_mixed_reminders(calendar_manager, test_event_base, test_c
     assert 120 in actual_alarms, "2 hour reminder not found"
     assert 1440 in actual_alarms, "1 day reminder not found"
     assert 4320 in actual_alarms, "3 day reminder not found"
+
+
+def test_nstaggeddate_compatibility_in_event_dates(calendar_manager, test_event_base, test_calendar, cleanup_events):
+    """Test that event dates work correctly with NSTaggedDate objects and .date() method calls"""
+    # Create an event
+    event = calendar_manager.create_event(
+        CreateEventRequest(
+            title=test_event_base["title"],
+            start_time=test_event_base["start_time"],
+            end_time=test_event_base["end_time"],
+            notes=test_event_base["notes"],
+            location=test_event_base["location"],
+            calendar_name=test_calendar["name"],
+        )
+    )
+    cleanup_events(event.identifier)
+
+    # List events to get them with potentially NSTaggedDate objects
+    events = calendar_manager.list_events(
+        start_time=test_event_base["start_time"] - timedelta(hours=1),
+        end_time=test_event_base["end_time"] + timedelta(hours=1),
+    )
+    
+    # Find our test event
+    test_event = None
+    for e in events:
+        if e.identifier == event.identifier:
+            test_event = e
+            break
+    
+    assert test_event is not None, "Created event not found in list"
+    
+    # Test that .date() method works on start_time and end_time
+    # This is the critical test for the NSTaggedDate fix
+    try:
+        start_date = test_event.start_time.date()
+        end_date = test_event.end_time.date()
+        
+        # Verify the dates are correct
+        expected_start_date = test_event_base["start_time"].date()
+        expected_end_date = test_event_base["end_time"].date()
+        
+        assert start_date == expected_start_date, f"Start date mismatch: {start_date} != {expected_start_date}"
+        assert end_date == expected_end_date, f"End date mismatch: {end_date} != {expected_end_date}"
+        
+    except AttributeError as e:
+        pytest.fail(f"NSTaggedDate compatibility test failed: {e}")
+
+
+def test_event_date_formatting_like_group_tools(calendar_manager, test_event_base, test_calendar, cleanup_events):
+    """Test date formatting similar to what group tools do, ensuring NSTaggedDate compatibility"""
+    # Create multiple events on different dates
+    event1 = calendar_manager.create_event(
+        CreateEventRequest(
+            title="Event 1",
+            start_time=test_event_base["start_time"],
+            end_time=test_event_base["end_time"],
+            calendar_name=test_calendar["name"],
+        )
+    )
+    cleanup_events(event1.identifier)
+    
+    event2 = calendar_manager.create_event(
+        CreateEventRequest(
+            title="Event 2", 
+            start_time=test_event_base["start_time"] + timedelta(days=1),
+            end_time=test_event_base["end_time"] + timedelta(days=1),
+            calendar_name=test_calendar["name"],
+        )
+    )
+    cleanup_events(event2.identifier)
+
+    # List events
+    events = calendar_manager.list_events(
+        start_time=test_event_base["start_time"] - timedelta(hours=1),
+        end_time=test_event_base["end_time"] + timedelta(days=2),
+    )
+    
+    # Sort by start time like group tools do
+    events.sort(key=lambda x: x.start_time)
+    
+    # Test the exact pattern used in group_tools.py lines 235-238
+    current_date = None
+    formatted_output = ""
+    
+    for event in events:
+        if event.identifier in [event1.identifier, event2.identifier]:
+            try:
+                # This is the critical line that was failing with NSTaggedDate
+                event_date = event.start_time.date()
+                
+                if current_date != event_date:
+                    current_date = event_date
+                    formatted_output += f"📅 **{event_date.strftime('%A, %B %d, %Y')}**\n"
+                
+                time_str = "All Day" if event.all_day else event.start_time.strftime('%H:%M')
+                formatted_output += f"   • {time_str} - {event.title}\n"
+                
+            except AttributeError as e:
+                pytest.fail(f"Group tools date formatting simulation failed: {e}")
+    
+    # Verify we got some formatted output
+    assert "📅" in formatted_output, "Date headers not generated"
+    assert "Event 1" in formatted_output, "Event 1 not found in output"
+    assert "Event 2" in formatted_output, "Event 2 not found in output"
