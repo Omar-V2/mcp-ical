@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import IntEnum
 from typing import Annotated, Self
 
@@ -148,10 +148,32 @@ class Event:
                 else None,
             )
 
+        # Handle all-day event dates specially to avoid timezone issues
+        # All-day events are stored as UTC timestamps but should display as local dates
+        if ekevent.isAllDay():
+            start_utc = datetime.fromtimestamp(
+                ekevent.startDate().timeIntervalSince1970(),
+                tz=timezone.utc
+            )
+            end_utc = datetime.fromtimestamp(
+                ekevent.endDate().timeIntervalSince1970(),
+                tz=timezone.utc
+            )
+            # Convert to local timezone and normalize to midnight/end-of-day
+            start_time = start_utc.astimezone().replace(
+                hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+            )
+            end_time = end_utc.astimezone().replace(
+                hour=23, minute=59, second=59, microsecond=0, tzinfo=None
+            )
+        else:
+            start_time = ekevent.startDate()
+            end_time = ekevent.endDate()
+
         return cls(
             title=ekevent.title(),
-            start_time=ekevent.startDate(),
-            end_time=ekevent.endDate(),
+            start_time=start_time,
+            end_time=end_time,
             calendar_name=ekevent.calendar().title(),
             location=ekevent.location(),
             notes=ekevent.notes(),
