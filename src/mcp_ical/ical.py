@@ -12,6 +12,7 @@ from EventKit import (
     EKSpanFutureEvents,  # type: ignore
     EKSpanThisEvent,  # type: ignore
 )
+from Foundation import NSURL  # type: ignore
 from loguru import logger
 
 from .models import (
@@ -96,7 +97,7 @@ class CalendarManager:
         if new_event.location:
             ekevent.setLocation_(new_event.location)
         if new_event.url:
-            ekevent.setURL_(new_event.url)
+            ekevent.setURL_(NSURL.URLWithString_(new_event.url))
         if new_event.all_day:
             ekevent.setAllDay_(new_event.all_day)
 
@@ -165,7 +166,7 @@ class CalendarManager:
         if request.notes is not None:
             existing_ek_event.setNotes_(request.notes)
         if request.url is not None:
-            existing_ek_event.setURL_(request.url)
+            existing_ek_event.setURL_(NSURL.URLWithString_(request.url))
         if request.all_day is not None:
             existing_ek_event.setAllDay_(request.all_day)
 
