@@ -186,6 +186,17 @@ uv run pytest tests
 - Better results with Claude 3.5 Sonnet compared to Haiku
 - Reminder timing for recurring all-day events may be off by one day
 
+## 🔧 MCP Client Compatibility
+
+### `create_event` tool (2026-02)
+
+Some MCP clients (e.g. Cursor IDE) pass tool parameters as flat key-value pairs or serialize nested objects as JSON strings. The `create_event` tool was updated to accept **flat parameters** instead of a single nested object:
+
+- **Required:** `title`, `start_time`, `end_time`
+- **Optional:** `calendar_name`, `location`, `notes`, `alarms_minutes_offsets`, `url`, `all_day`
+
+The server still builds a `CreateEventRequest` internally and uses the same `CalendarManager` API, so calendar behaviour is unchanged while improving compatibility with different MCP clients.
+
 ## 🤝 Contributing
 
 Feedback and contributions are welcome. Here's how you can help:
