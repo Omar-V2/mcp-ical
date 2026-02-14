@@ -96,7 +96,17 @@ async def list_events(start_date: datetime, end_date: datetime, calendar_name: s
 
 
 @mcp.tool()
-async def create_event(create_event_request: CreateEventRequest) -> str:
+async def create_event(
+    title: str,
+    start_time: str,
+    end_time: str,
+    calendar_name: str | None = None,
+    location: str | None = None,
+    notes: str | None = None,
+    alarms_minutes_offsets: list[int] | None = None,
+    url: str | None = None,
+    all_day: bool = False,
+) -> str:
     """Create a new calendar event.
 
     Before using this tool, make sure to:
@@ -114,24 +124,20 @@ async def create_event(create_event_request: CreateEventRequest) -> str:
         location: Optional event location. Ask user if they want to specify a location.
         calendar_name: Optional calendar name. Ask user which calendar to use, referencing calendars://list.
         all_day: Whether this is an all-day event
-        reminder_offsets: List of minutes before the event to trigger reminders\
+        alarms_minutes_offsets: List of minutes before the event to trigger reminders
             e.g. [60, 1440] means two reminders, the first 24 hours before the event and the second one hour before.
-        recurrence_rule: Optional recurrence rule for the event. This should be an instance of `RecurrenceRule` with the following fields:
-            - frequency: Frequency of the recurrence (e.g., DAILY, WEEKLY, MONTHLY, YEARLY).
-            - interval: Interval between recurrences (e.g., every 2 weeks).
-            - end_date: Optional end date for the recurrence. If specified, the recurrence will stop on this date.
-            - occurrence_count: Optional number of occurrences. If specified, the recurrence will stop after this many occurrences.
-            - days_of_week: Optional list of weekdays for the event. Use integers to represent days:
-                - Sunday: 1
-                - Monday: 2
-                - Tuesday: 3
-                - Wednesday: 4
-                - Thursday: 5
-                - Friday: 6
-                - Saturday: 7
-
-    Note: Both `end_date` and `occurrence_count` should not be set simultaneously; choose one or the other, or leave both unset.
     """
+    create_event_request = CreateEventRequest(
+        title=title,
+        start_time=datetime.fromisoformat(start_time.replace("Z", "+00:00")),
+        end_time=datetime.fromisoformat(end_time.replace("Z", "+00:00")),
+        calendar_name=calendar_name,
+        location=location,
+        notes=notes,
+        alarms_minutes_offsets=alarms_minutes_offsets,
+        url=url,
+        all_day=all_day,
+    )
     logger.info(f"Incoming Create Event Request: {create_event_request}")
     try:
         manager = get_calendar_manager()
