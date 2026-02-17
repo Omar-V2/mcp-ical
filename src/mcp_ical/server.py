@@ -6,7 +6,7 @@ from textwrap import dedent
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 
-from .ical import CalendarManager
+from .ical import CalendarManager, NoSuchEventException
 from .models import CreateEventRequest, UpdateEventRequest
 
 mcp = FastMCP("Calendar")
@@ -195,6 +195,25 @@ async def update_event(event_id: str, update_event_request: UpdateEventRequest) 
 
     except Exception as e:
         return f"Error updating event: {str(e)}"
+
+
+@mcp.tool()
+async def delete_event(event_id: str) -> str:
+    """Delete a calendar event by its unique identifier.
+
+    Use the event ID returned from list_events or create_event.
+
+    Args:
+        event_id: Unique identifier of the event to delete (e.g. from list_events or create_event).
+    """
+    try:
+        manager = get_calendar_manager()
+        manager.delete_event(event_id)
+        return "Successfully deleted event."
+    except NoSuchEventException:
+        return f"Event with ID {event_id} not found."
+    except Exception as e:
+        return f"Error deleting event: {str(e)}"
 
 
 def main():
