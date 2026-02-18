@@ -168,8 +168,41 @@ class Event:
             _raw_event=ekevent,
         )
 
+    def to_compact_str(self) -> str:
+        """Return a compact string for list views, omitting empty fields and truncating notes."""
+        parts = [f"Event: {self.title}"]
+        parts.append(f"  ID: {self.identifier}")
+        parts.append(f"  Start: {self.start_time}")
+        parts.append(f"  End: {self.end_time}")
+        if self.all_day:
+            parts.append("  All Day: Yes")
+        if self.calendar_name:
+            parts.append(f"  Calendar: {self.calendar_name}")
+        if self.location:
+            parts.append(f"  Location: {self.location}")
+        if self.notes:
+            truncated = self.notes[:120].replace("\n", " ").strip()
+            if len(self.notes) > 120:
+                truncated += "..."
+            parts.append(f"  Notes: {truncated}")
+        if self.organizer:
+            parts.append(f"  Organizer: {self.organizer}")
+        if self.attendees:
+            parts.append(f"  Attendees: {len(self.attendees)}")
+        if self.url:
+            parts.append(f"  URL: {self.url}")
+        if self.recurrence_rule:
+            r = self.recurrence_rule
+            rec = f"  Recurrence: {r.frequency.name} every {r.interval}"
+            if r.end_date:
+                rec += f" until {r.end_date}"
+            elif r.occurrence_count:
+                rec += f" x{r.occurrence_count}"
+            parts.append(rec)
+        return "\n".join(parts)
+
     def __str__(self) -> str:
-        """Return a human-readable string representation of the Event."""
+        """Return a full human-readable string representation of the Event."""
         attendees_list = ", ".join(self.attendees) if self.attendees else "None"
         alarms_list = ", ".join(map(str, self.alarms_minutes_offsets)) if self.alarms_minutes_offsets else "None"
 
