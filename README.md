@@ -178,7 +178,49 @@ uv sync --dev
 uv run pytest tests
 ```
 
-## 🐛 Known Issues
+## Fork Modifications
+
+This fork includes token optimisation changes for use with Claude Code.
+
+### Compact list output
+
+`list_events` returns compact summaries instead of full event dumps — truncated notes (120 chars), attendee count instead of full names, and empty fields omitted. A separate `get_event` tool fetches full details for a specific event by ID.
+
+### Trimmed tool descriptions
+
+MCP tool descriptions (docstrings) are sent to Claude on every message as part of the system prompt. The upstream descriptions were verbose (~150 lines across all tools). These have been condensed to essentials while preserving all parameter documentation.
+
+### Generic MCP output compression hook
+
+A Claude Code `PostToolUse` hook is included at `.claude/hooks/mcp-compress.sh`. It truncates any MCP tool output exceeding a character threshold before Claude sees it, preventing token limit errors on large result sets.
+
+**Setup on a new machine:**
+
+1. Copy the hook:
+    ```bash
+    cp .claude/hooks/mcp-compress.sh ~/.claude/hooks/
+    chmod +x ~/.claude/hooks/mcp-compress.sh
+    ```
+
+2. Add to `~/.claude/settings.json` inside the `"hooks"` object:
+    ```json
+    "PostToolUse": [
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/YOUR_USERNAME/.claude/hooks/mcp-compress.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+    ```
+
+3. Optionally set a custom threshold (default 12000 chars) via env var `MCP_COMPRESS_THRESHOLD` in your Claude Code settings.
+
+## Known Issues
 
 ### Recurring Events
 
