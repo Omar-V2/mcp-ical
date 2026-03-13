@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "mcp-ical": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/Users/tamm/dev/mcp-ical",
+        "run",
+        "mcp-ical"
+      ]
+    }
+  }
+}

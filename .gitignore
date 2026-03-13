@@ -9,4 +9,4 @@ wheels/
 # Virtual environments
 .venv
 .vscode
-.DS_Store
+.DS_Store.mcp.json
