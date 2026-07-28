@@ -197,6 +197,59 @@ async def update_event(event_id: str, update_event_request: UpdateEventRequest) 
         return f"Error updating event: {str(e)}"
 
 
+@mcp.tool()
+async def delete_event(event_id: str) -> str:
+    """Delete a calendar event by its identifier.
+
+    Use list_events to find event identifiers, then pass the identifier here to delete.
+
+    Args:
+        event_id: The unique identifier of the event to delete (from list_events output).
+    """
+    try:
+        manager = get_calendar_manager()
+        manager.delete_event(event_id)
+        return f"Successfully deleted event with ID: {event_id}"
+
+    except Exception as e:
+        return f"Error deleting event: {str(e)}"
+
+
+@mcp.tool()
+async def delete_events_in_range(calendar_name: str, start_date: datetime, end_date: datetime) -> str:
+    """Delete all events in a calendar within a date range.
+
+    Use this for bulk operations like clearing a week's worth of events before re-syncing.
+
+    Args:
+        calendar_name: The name of the calendar to delete events from (e.g., "Work").
+        start_date: Start of the date range in ISO8601 format (YYYY-MM-DDT00:00:00).
+        end_date: End of the date range in ISO8601 format (YYYY-MM-DDT23:59:59).
+    """
+    try:
+        manager = get_calendar_manager()
+        events = manager.list_events(start_date, end_date, calendar_name)
+        if not events:
+            return f"No events found in {calendar_name} for the specified date range"
+
+        deleted = 0
+        errors = []
+        for event in events:
+            try:
+                manager.delete_event(event.identifier)
+                deleted += 1
+            except Exception as e:
+                errors.append(f"{event.title}: {str(e)}")
+
+        result = f"Deleted {deleted} event(s) from {calendar_name}"
+        if errors:
+            result += f"\nFailed to delete {len(errors)} event(s):\n" + "\n".join(errors)
+        return result
+
+    except Exception as e:
+        return f"Error deleting events: {str(e)}"
+
+
 def main():
     logger.info("Running mcp-ical server...")
     mcp.run(transport="stdio")
